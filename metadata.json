@@ -1,0 +1,5 @@
+{
+  "name": "Rossari - AI Assistant",
+  "description": "An intelligent application to streamline the linking of payments to invoices for SAP customers. Users can manually enter payment details or upload a payment advice document for AI-powered data extraction using, simplifying the accounts receivable process.",
+  "requestFramePermissions": []
+}
