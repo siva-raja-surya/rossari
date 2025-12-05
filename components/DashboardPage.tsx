@@ -1,10 +1,10 @@
-import React, { useState } from "react";
-import { User, Page, FormSubmission } from "../types";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { User, FormSubmission } from "../types";
 
 interface DashboardPageProps {
   user: User;
-  navigate: (page: Page) => void;
-  submissions: FormSubmission[];
+  onLogout: () => void;
 }
 
 const formatCurrency = (amount: number | null | undefined): string => {
@@ -61,9 +61,7 @@ const SubmissionDetailsModal: React.FC<{
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <div>
               <strong>Reference ID:</strong>{" "}
-              <span className="text-gray-700">
-                {submission.id.toUpperCase()}
-              </span>
+              <span className="text-gray-700">{submission.id}</span>
             </div>
             <div>
               <strong>Submitted At:</strong>{" "}
@@ -132,26 +130,31 @@ const SubmissionDetailsModal: React.FC<{
           </div>
 
           {/* Payment Details */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-800 border-t pt-4 mt-4">
-              Payment Details
-            </h4>
-            <ul className="divide-y divide-gray-200 mt-2">
-              {submission.paymentDetails.map((p) => (
-                <li key={p.id} className="py-2 grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <strong>Ref:</strong> {p.bankReferenceNumber}
-                  </div>
-                  <div>
-                    <strong>Amount:</strong> {formatCurrency(p.amount)}
-                  </div>
-                  <div>
-                    <strong>Date:</strong> {p.paymentDate}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {submission.paymentDetails && (
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 border-t pt-4 mt-4">
+                Payment Details
+              </h4>
+              <ul className="divide-y divide-gray-200 mt-2">
+                {submission.paymentDetails.map((p, idx) => (
+                  <li
+                    key={p.id || idx}
+                    className="py-2 grid grid-cols-3 gap-4 text-sm"
+                  >
+                    <div>
+                      <strong>Ref:</strong> {p.bankReferenceNumber}
+                    </div>
+                    <div>
+                      <strong>Amount:</strong> {formatCurrency(p.amount)}
+                    </div>
+                    <div>
+                      <strong>Date:</strong> {p.paymentDate}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Invoice Details */}
           {submission.invoiceDetails &&
@@ -161,9 +164,9 @@ const SubmissionDetailsModal: React.FC<{
                   Invoice Details
                 </h4>
                 <ul className="divide-y divide-gray-200 mt-2">
-                  {submission.invoiceDetails.map((i) => (
+                  {submission.invoiceDetails.map((i, idx) => (
                     <li
-                      key={i.id}
+                      key={i.id || idx}
                       className="py-2 grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-4 text-sm"
                     >
                       <div>
@@ -208,13 +211,39 @@ const SubmissionDetailsModal: React.FC<{
   );
 };
 
-const DashboardPage: React.FC<DashboardPageProps> = ({
-  user,
-  navigate,
-  submissions,
-}) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
   const [selectedSubmission, setSelectedSubmission] =
     useState<FormSubmission | null>(null);
+  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("/api/forms", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          onLogout();
+          return;
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+          setSubmissions(data);
+        }
+      } catch (err) {
+        console.error("Failed to load submissions", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSubmissions();
+  }, [onLogout]);
 
   return (
     <>
@@ -234,7 +263,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           </p>
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div
-              onClick={() => navigate("FORM")}
+              onClick={() => navigate("/form")}
               className="group relative p-6 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer transition-all duration-300 transform hover:scale-105"
             >
               <div className="flex items-center">
@@ -265,7 +294,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
             </div>
             <div
-              onClick={() => navigate("UPLOAD")}
+              onClick={() => navigate("/upload")}
               className="group relative p-6 bg-green-50 rounded-lg hover:bg-green-100 cursor-pointer transition-all duration-300 transform hover:scale-105"
             >
               <div className="flex items-center">
@@ -303,7 +332,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="mt-4 flow-root">
             <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                {submissions.length > 0 ? (
+                {isLoading ? (
+                  <div className="text-center py-10 text-gray-500">
+                    Loading submissions...
+                  </div>
+                ) : submissions.length > 0 ? (
                   <table className="min-w-full divide-y divide-gray-300">
                     <thead>
                       <tr>
@@ -343,7 +376,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
                       {submissions.map((sub) => (
                         <tr key={sub.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
-                            {sub.id.toUpperCase()}
+                            {sub.id}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                             {sub.invoiceType}

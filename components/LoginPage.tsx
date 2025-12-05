@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import { User } from "../types";
 
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (user: User, token: string) => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
@@ -11,7 +12,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
@@ -19,27 +20,54 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
     setError("");
     setLoading(true);
-    // Simulate API call to send OTP
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) throw new Error("Failed to send OTP");
+
       setOtpSent(true);
-    }, 1000);
+      // In a real app, don't show this. For demo purposes:
+      console.log("Check backend console for OTP");
+    } catch (err) {
+      setError("Failed to send OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp !== "123456") {
-      // Mock OTP
-      setError("Invalid OTP. Please enter 123456.");
+    if (!otp) {
+      setError("Please enter the OTP.");
       return;
     }
     setError("");
     setLoading(true);
-    // Simulate API call to verify OTP
-    setTimeout(() => {
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      onLogin({ email: data.user.email }, data.token);
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
       setLoading(false);
-      onLogin();
-    }, 1000);
+    }
   };
 
   return (
@@ -131,7 +159,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter 123456"
+                  placeholder="Enter 6-digit OTP"
                 />
               </div>
             </div>

@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { Page, ExtractedData } from "../types";
+import { useNavigate } from "react-router-dom";
 import { extractDataFromAdvise } from "../services/geminiService";
 
 interface UploadAdviseProps {
-  navigate: (page: Page) => void;
-  onExtractionComplete: (data: ExtractedData) => void;
+  // No props needed now
 }
 
 const Spinner: React.FC = () => (
@@ -30,10 +29,8 @@ const Spinner: React.FC = () => (
   </svg>
 );
 
-const UploadAdvise: React.FC<UploadAdviseProps> = ({
-  navigate,
-  onExtractionComplete,
-}) => {
+const UploadAdvise: React.FC<UploadAdviseProps> = () => {
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,7 +59,8 @@ const UploadAdvise: React.FC<UploadAdviseProps> = ({
     setLoading(true);
     try {
       const data = await extractDataFromAdvise(file);
-      onExtractionComplete(data);
+      // Navigate to form and pass the extracted data
+      navigate("/form", { state: { initialData: data } });
     } catch (err: any) {
       setError(err.message || "An unknown error occurred.");
     } finally {
@@ -135,7 +133,7 @@ const UploadAdvise: React.FC<UploadAdviseProps> = ({
       <div className="mt-8 flex items-center justify-end gap-x-6">
         <button
           type="button"
-          onClick={() => navigate("DASHBOARD")}
+          onClick={() => navigate("/")}
           className="text-sm font-semibold leading-6 text-gray-900"
         >
           Cancel

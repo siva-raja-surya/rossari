@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   InvoiceType,
   PaymentDetail,
   InvoiceDetail,
   FormSubmission,
-  Page,
   ExtractedData,
 } from "../types";
 import {
@@ -17,9 +17,7 @@ import {
 } from "../constants";
 
 interface PaymentFormProps {
-  onSubmit: (submission: FormSubmission) => void;
-  navigate: (page: Page) => void;
-  initialData?: ExtractedData | null;
+  // Props are now largely handled by Router state/Location
 }
 
 const formatCurrency = (amount: number): string => {
@@ -31,11 +29,12 @@ const formatCurrency = (amount: number): string => {
   });
 };
 
-const PaymentForm: React.FC<PaymentFormProps> = ({
-  onSubmit,
-  navigate,
-  initialData,
-}) => {
+const PaymentForm: React.FC<PaymentFormProps> = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Retrieve initial data passed from UploadAdvise via router state
+  const initialData = location.state?.initialData as ExtractedData | undefined;
+
   const [invoiceType, setInvoiceType] = useState<InvoiceType>(
     InvoiceType.SPECIFIC
   );
@@ -52,6 +51,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   const [remark, setRemark] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([
     {
@@ -154,7 +154,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         (item as any).id === id ? { ...item, [field]: value } : item
       )
     );
-    // Clear error for this field when user types
     const errorKey = `${id}-${String(field)}`;
     if (fieldErrors[errorKey]) {
       setFieldErrors((prev) => {
@@ -183,7 +182,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     invoiceType === InvoiceType.ADVANCE ||
     invoiceType === InvoiceType.OUTSTANDING;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setFieldErrors({});
@@ -212,7 +211,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     }
 
     // 2. Payment Details Validation
-    // Requirement: Must be 10-22 alphanumeric digits (characters)
     const bankRefRegex = /^[a-zA-Z0-9]{10,22}$/;
 
     paymentDetails.forEach((p) => {
@@ -234,18 +232,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
     if (invoiceType === InvoiceType.SPECIFIC) {
       // 3. Invoice Details Validation
-      // Requirement: can be number or alphanumeric not only alphabets
       const seenInvoices = new Map<string, string[]>();
 
       invoiceDetails.forEach((i) => {
         const num = i.invoiceNumber?.trim() || "";
 
-        // Required Check
         if (!num) {
           newFieldErrors[`${i.id}-invoiceNumber`] = "Required";
           hasError = true;
         } else {
-          // Format Check
           const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(num);
           const isOnlyAlphabets = /^[a-zA-Z]+$/.test(num);
           if (!isAlphanumeric || isOnlyAlphabets) {
@@ -254,7 +249,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             hasError = true;
           }
 
-          // Duplicate Collection
           const normalized = num.toLowerCase();
           if (!seenInvoices.has(normalized)) seenInvoices.set(normalized, []);
           seenInvoices.get(normalized)!.push(i.id);
@@ -266,7 +260,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         }
       });
 
-      // Mark Duplicates
       seenInvoices.forEach((ids, _) => {
         if (ids.length > 1) {
           ids.forEach((id) => {
@@ -276,7 +269,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         }
       });
 
-      // 4. Cross-Field Validation (Bank Ref vs Invoice Number)
+      // 4. Cross-Field Validation
       const bankRefs = new Set(
         paymentDetails
           .map((p) => p.bankReferenceNumber?.trim().toLowerCase())
@@ -287,7 +280,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         const num = i.invoiceNumber?.trim().toLowerCase();
         if (num && bankRefs.has(num)) {
           newFieldErrors[`${i.id}-invoiceNumber`] = "Cannot match Bank Ref";
-          // Also flag the payment detail
           paymentDetails.forEach((p) => {
             if (p.bankReferenceNumber?.trim().toLowerCase() === num) {
               newFieldErrors[`${p.id}-bankReferenceNumber`] =
@@ -304,8 +296,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         0
       );
 
-      // Allow for minor floating point differences (e.g., 0.01)
-      // Updated condition: Check against totalInvoiceAmountPaid instead of totalInvoiceAmount
       if (
         Math.abs(totalPaymentAmount - invoiceTotals.totalInvoiceAmountPaid) >
         0.01
@@ -330,28 +320,46 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       return;
     }
 
-    const newSubmission: FormSubmission = {
-      id: `SUB-${Date.now().toString().slice(-6)}`,
-      submittedAt: new Date(),
-      invoiceType,
-      customerCode: isCustomerRequired ? customerCode : undefined,
-      customerName: isCustomerRequired ? customerName : undefined,
-      entityCode,
-      divisionCode: divisionCode || undefined,
-      caseType: caseType || undefined,
-      bankAccount,
-      creditControlArea: creditControlArea || undefined,
-      profitCenter: profitCenter || undefined,
-      remark: remark || undefined,
-      paymentDetails,
-      invoiceDetails:
-        invoiceType === InvoiceType.SPECIFIC ? invoiceDetails : undefined,
-    };
-    console.log(
-      "Submitting to Power Automate (mock):",
-      JSON.stringify(newSubmission, null, 2)
-    );
-    onSubmit(newSubmission);
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        invoiceType,
+        customerCode: isCustomerRequired ? customerCode : undefined,
+        customerName: isCustomerRequired ? customerName : undefined,
+        entityCode,
+        divisionCode: divisionCode || undefined,
+        caseType: caseType || undefined,
+        bankAccount,
+        creditControlArea: creditControlArea || undefined,
+        profitCenter: profitCenter || undefined,
+        remark: remark || undefined,
+        paymentDetails,
+        invoiceDetails:
+          invoiceType === InvoiceType.SPECIFIC ? invoiceDetails : undefined,
+      };
+
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/forms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Submission failed");
+      }
+
+      // On success, navigate back to dashboard
+      navigate("/");
+    } catch (error: any) {
+      setFormError(error.message || "Failed to submit form. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredDivisions = entityCode
@@ -948,16 +956,17 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         <div className="flex items-center gap-x-6">
           <button
             type="button"
-            onClick={() => navigate("DASHBOARD")}
+            onClick={() => navigate("/")}
             className="text-sm font-semibold leading-6 text-gray-900"
           >
             Cancel
           </button>
           <button
             type="submit"
+            disabled={isSubmitting}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Submit to SAP
+            {isSubmitting ? "Submitting..." : "Submit to SAP"}
           </button>
         </div>
       </div>
