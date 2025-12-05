@@ -2,12 +2,12 @@ export interface User {
   email: string;
 }
 
-export type Page = 'DASHBOARD' | 'FORM' | 'UPLOAD';
+export type Page = "DASHBOARD" | "FORM" | "UPLOAD";
 
 export enum InvoiceType {
-  ADVANCE = 'Advance payment',
-  OUTSTANDING = 'Bill payment for outstanding invoice not specific',
-  SPECIFIC = 'Bill payment for specific invoice'
+  ADVANCE = "Advance payment",
+  OUTSTANDING = "Bill payment for outstanding invoice not specific",
+  SPECIFIC = "Bill payment for specific invoice",
 }
 
 export interface PaymentDetail {
@@ -18,7 +18,7 @@ export interface PaymentDetail {
 }
 
 export interface InvoiceDetail {
-  id:string;
+  id: string;
   invoiceNumber: string;
   invoiceAmount: number | null;
   invoiceAmountPaid: number | null;
@@ -35,7 +35,7 @@ export interface FormSubmission {
   customerName?: string;
   entityCode: string;
   divisionCode?: string;
-  caseType?: 'Domestic' | 'Import' | 'Export';
+  caseType?: "Domestic" | "Import" | "Export";
   bankAccount: string;
   creditControlArea?: string;
   profitCenter?: string;
@@ -44,7 +44,7 @@ export interface FormSubmission {
   invoiceDetails?: InvoiceDetail[];
 }
 
-export type ExtractedData = Partial<Omit<FormSubmission, 'id' | 'submittedAt'>>;
+export type ExtractedData = Partial<Omit<FormSubmission, "id" | "submittedAt">>;
 
 export interface Customer {
   code: string;
@@ -66,4 +66,15 @@ export interface BankAccount {
   name: string;
   glCode: string;
   entityCode: string;
+}
+
+export interface BriefingData {
+  title: string;
+  content: string;
+  items: string[];
+}
+
+export enum AuthStep {
+  EMAIL = "EMAIL",
+  OTP = "OTP",
 }

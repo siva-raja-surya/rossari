@@ -50,6 +50,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   const [creditControlArea, setCreditControlArea] = useState("");
   const [profitCenter, setProfitCenter] = useState("");
   const [remark, setRemark] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([
     {
@@ -152,6 +154,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         (item as any).id === id ? { ...item, [field]: value } : item
       )
     );
+    // Clear error for this field when user types
+    const errorKey = `${id}-${String(field)}`;
+    if (fieldErrors[errorKey]) {
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        return newErrors;
+      });
+    }
   };
 
   const addDetail = <T,>(
@@ -172,30 +183,150 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
     invoiceType === InvoiceType.ADVANCE ||
     invoiceType === InvoiceType.OUTSTANDING;
 
-  const isFormValid = () => {
-    if (!entityCode || !bankAccount) return false;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFieldErrors({});
+
+    let hasError = false;
+    const newFieldErrors: Record<string, string> = {};
+
+    // 1. Top Level Validation
+    if (!entityCode) {
+      newFieldErrors["entityCode"] = "Entity Code is required";
+      hasError = true;
+    }
+    if (!bankAccount) {
+      newFieldErrors["bankAccount"] = "Bank Account is required";
+      hasError = true;
+    }
 
     if (isCustomerRequired) {
-      if (customerCode.length !== 8 || customerCodeError) {
-        return false;
+      if (customerCode.length !== 8) {
+        newFieldErrors["customerCode"] = "Customer code must be 8 digits.";
+        hasError = true;
+      } else if (customerCodeError) {
+        newFieldErrors["customerCode"] = customerCodeError;
+        hasError = true;
       }
     }
 
-    if (paymentDetails.some((p) => !p.bankReferenceNumber)) return false;
+    // 2. Payment Details Validation
+    // Requirement: Must be 10-22 alphanumeric digits (characters)
+    const bankRefRegex = /^[a-zA-Z0-9]{10,22}$/;
 
-    if (
-      invoiceType === InvoiceType.SPECIFIC &&
-      invoiceDetails.some((i) => !i.invoiceNumber)
-    )
-      return false;
+    paymentDetails.forEach((p) => {
+      const ref = p.bankReferenceNumber?.trim() || "";
+      if (!ref) {
+        newFieldErrors[`${p.id}-bankReferenceNumber`] = "Required";
+        hasError = true;
+      } else if (!bankRefRegex.test(ref)) {
+        newFieldErrors[`${p.id}-bankReferenceNumber`] =
+          "Must be 10-22 alphanumeric characters.";
+        hasError = true;
+      }
 
-    return true;
-  };
+      if (p.amount === null || p.amount === undefined) {
+        newFieldErrors[`${p.id}-amount`] = "Required";
+        hasError = true;
+      }
+    });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormValid()) {
-      alert("Please fill all mandatory fields correctly.");
+    if (invoiceType === InvoiceType.SPECIFIC) {
+      // 3. Invoice Details Validation
+      // Requirement: can be number or alphanumeric not only alphabets
+      const seenInvoices = new Map<string, string[]>();
+
+      invoiceDetails.forEach((i) => {
+        const num = i.invoiceNumber?.trim() || "";
+
+        // Required Check
+        if (!num) {
+          newFieldErrors[`${i.id}-invoiceNumber`] = "Required";
+          hasError = true;
+        } else {
+          // Format Check
+          const isAlphanumeric = /^[a-zA-Z0-9]+$/.test(num);
+          const isOnlyAlphabets = /^[a-zA-Z]+$/.test(num);
+          if (!isAlphanumeric || isOnlyAlphabets) {
+            newFieldErrors[`${i.id}-invoiceNumber`] =
+              "Must be alphanumeric (not only alphabets).";
+            hasError = true;
+          }
+
+          // Duplicate Collection
+          const normalized = num.toLowerCase();
+          if (!seenInvoices.has(normalized)) seenInvoices.set(normalized, []);
+          seenInvoices.get(normalized)!.push(i.id);
+        }
+
+        if (i.invoiceAmount === null || i.invoiceAmount === undefined) {
+          newFieldErrors[`${i.id}-invoiceAmount`] = "Required";
+          hasError = true;
+        }
+      });
+
+      // Mark Duplicates
+      seenInvoices.forEach((ids, _) => {
+        if (ids.length > 1) {
+          ids.forEach((id) => {
+            newFieldErrors[`${id}-invoiceNumber`] = "Duplicate Invoice Number";
+          });
+          hasError = true;
+        }
+      });
+
+      // 4. Cross-Field Validation (Bank Ref vs Invoice Number)
+      const bankRefs = new Set(
+        paymentDetails
+          .map((p) => p.bankReferenceNumber?.trim().toLowerCase())
+          .filter(Boolean)
+      );
+
+      invoiceDetails.forEach((i) => {
+        const num = i.invoiceNumber?.trim().toLowerCase();
+        if (num && bankRefs.has(num)) {
+          newFieldErrors[`${i.id}-invoiceNumber`] = "Cannot match Bank Ref";
+          // Also flag the payment detail
+          paymentDetails.forEach((p) => {
+            if (p.bankReferenceNumber?.trim().toLowerCase() === num) {
+              newFieldErrors[`${p.id}-bankReferenceNumber`] =
+                "Cannot match Invoice #";
+            }
+          });
+          hasError = true;
+        }
+      });
+
+      // 5. Total Amount Check
+      const totalPaymentAmount = paymentDetails.reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0
+      );
+
+      // Allow for minor floating point differences (e.g., 0.01)
+      // Updated condition: Check against totalInvoiceAmountPaid instead of totalInvoiceAmount
+      if (
+        Math.abs(totalPaymentAmount - invoiceTotals.totalInvoiceAmountPaid) >
+        0.01
+      ) {
+        setFormError(
+          `Validation Error: Total Payment Amount (${formatCurrency(
+            totalPaymentAmount
+          )}) must match Total Invoice Amount Paid (${formatCurrency(
+            invoiceTotals.totalInvoiceAmountPaid
+          )}).`
+        );
+        hasError = true;
+      }
+    }
+
+    setFieldErrors(newFieldErrors);
+
+    if (hasError || (formError && formError.length > 0)) {
+      if (!formError) {
+        setFormError("Please fix the highlighted errors.");
+      }
       return;
     }
 
@@ -232,8 +363,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   const filteredProfitCenters = entityCode
     ? PROFIT_CENTERS[entityCode] || []
     : [];
-  const customerCodeLengthError =
-    isCustomerRequired && customerCode.length > 0 && customerCode.length < 8;
+
+  const getInputClass = (errorKey?: string) => {
+    const hasError = errorKey && fieldErrors[errorKey];
+    return `mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+      hasError
+        ? "border-red-300 text-red-900 focus:border-red-500 focus:ring-red-500 placeholder-red-300"
+        : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+    }`;
+  };
 
   return (
     <form
@@ -272,20 +410,22 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             <input
               type="text"
               value={customerCode}
-              onChange={(e) =>
+              onChange={(e) => {
                 setCustomerCode(
                   e.target.value.replace(/[^0-9]/g, "").slice(0, 8)
-                )
-              }
+                );
+                if (fieldErrors["customerCode"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["customerCode"];
+                  setFieldErrors(newErrors);
+                }
+              }}
               disabled={!isCustomerRequired}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
+              className={getInputClass("customerCode")}
             />
-            {customerCodeError && (
-              <p className="mt-1 text-xs text-red-500">{customerCodeError}</p>
-            )}
-            {customerCodeLengthError && (
-              <p className="mt-1 text-xs text-red-500">
-                Customer code must be 8 digits.
+            {fieldErrors["customerCode"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["customerCode"]}
               </p>
             )}
           </div>
@@ -307,8 +447,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             </label>
             <select
               value={entityCode}
-              onChange={(e) => setEntityCode(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+              onChange={(e) => {
+                setEntityCode(e.target.value);
+                if (fieldErrors["entityCode"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["entityCode"];
+                  setFieldErrors(newErrors);
+                }
+              }}
+              className={getInputClass("entityCode")}
             >
               <option value="">Select Entity</option>
               {ENTITIES.map((e) => (
@@ -317,6 +464,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 </option>
               ))}
             </select>
+            {fieldErrors["entityCode"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["entityCode"]}
+              </p>
+            )}
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
@@ -357,9 +509,16 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             </label>
             <select
               value={bankAccount}
-              onChange={(e) => setBankAccount(e.target.value)}
+              onChange={(e) => {
+                setBankAccount(e.target.value);
+                if (fieldErrors["bankAccount"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["bankAccount"];
+                  setFieldErrors(newErrors);
+                }
+              }}
               disabled={!entityCode}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
+              className={getInputClass("bankAccount")}
             >
               <option value="">Select Bank</option>
               {filteredBankAccounts.map((b) => (
@@ -368,6 +527,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                 </option>
               ))}
             </select>
+            {fieldErrors["bankAccount"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["bankAccount"]}
+              </p>
+            )}
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
@@ -425,10 +589,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           {paymentDetails.map((detail, index) => (
             <div
               key={detail.id}
-              className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 gap-y-2 items-center py-2 border-b last:border-b-0"
+              className="grid grid-cols-1 sm:grid-cols-12 gap-x-4 gap-y-2 items-start py-4 border-b last:border-b-0"
             >
               <div className="sm:col-span-5">
-                <label className="block text-xs font-medium text-gray-700">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Bank Ref (UTR/Cheque) *
                 </label>
                 <input
@@ -442,12 +606,17 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                       setPaymentDetails
                     )
                   }
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                  className={getInputClass(`${detail.id}-bankReferenceNumber`)}
                 />
+                {fieldErrors[`${detail.id}-bankReferenceNumber`] && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldErrors[`${detail.id}-bankReferenceNumber`]}
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-3">
-                <label className="block text-xs font-medium text-gray-700">
-                  Amount
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Amount *
                 </label>
                 <input
                   type="number"
@@ -461,11 +630,16 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                       setPaymentDetails
                     )
                   }
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                  className={getInputClass(`${detail.id}-amount`)}
                 />
+                {fieldErrors[`${detail.id}-amount`] && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldErrors[`${detail.id}-amount`]}
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-3">
-                <label className="block text-xs font-medium text-gray-700">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Payment Date
                 </label>
                 <input
@@ -482,7 +656,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                 />
               </div>
-              <div className="sm:col-span-1 flex items-end justify-end">
+              <div className="sm:col-span-1 flex items-center justify-end h-full pt-6">
                 {paymentDetails.length > 1 && (
                   <button
                     type="button"
@@ -573,10 +747,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             {invoiceDetails.map((detail) => (
               <div
                 key={detail.id}
-                className="grid grid-cols-12 gap-x-4 gap-y-4 items-end p-4 border rounded-lg last:border-b-0 bg-gray-50"
+                className="grid grid-cols-12 gap-x-4 gap-y-4 items-start p-4 border rounded-lg last:border-b-0 bg-gray-50"
               >
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Invoice # *
                   </label>
                   <input
@@ -590,12 +764,17 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                         setInvoiceDetails
                       )
                     }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                    className={getInputClass(`${detail.id}-invoiceNumber`)}
                   />
+                  {fieldErrors[`${detail.id}-invoiceNumber`] && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {fieldErrors[`${detail.id}-invoiceNumber`]}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700">
-                    Invoice Amount
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Invoice Amount *
                   </label>
                   <input
                     type="number"
@@ -609,11 +788,16 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                         setInvoiceDetails
                       )
                     }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                    className={getInputClass(`${detail.id}-invoiceAmount`)}
                   />
+                  {fieldErrors[`${detail.id}-invoiceAmount`] && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {fieldErrors[`${detail.id}-invoiceAmount`]}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Invoice Amount Paid
                   </label>
                   <input
@@ -632,7 +816,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   />
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     TDS Amount
                   </label>
                   <input
@@ -651,7 +835,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   />
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     GST Withheld
                   </label>
                   <input
@@ -670,7 +854,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                   />
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-1">
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Invoice Amt Deducted
                   </label>
                   <input
@@ -688,7 +872,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
                   />
                 </div>
-                <div className="col-span-12 sm:col-span-6 lg:col-span-1 flex items-center justify-end">
+                <div className="col-span-12 sm:col-span-6 lg:col-span-1 flex items-center justify-end h-full">
                   {invoiceDetails.length > 1 && (
                     <button
                       type="button"
@@ -736,21 +920,46 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       )}
 
       {/* Action Buttons */}
-      <div className="mt-6 flex items-center justify-end gap-x-6">
-        <button
-          type="button"
-          onClick={() => navigate("DASHBOARD")}
-          className="text-sm font-semibold leading-6 text-gray-900"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={!isFormValid()}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-gray-400"
-        >
-          Submit to SAP
-        </button>
+      <div className="mt-6 flex flex-col items-end gap-y-4">
+        {formError && (
+          <div className="rounded-md bg-red-50 p-4 w-full">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  {formError}
+                </h3>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-x-6">
+          <button
+            type="button"
+            onClick={() => navigate("DASHBOARD")}
+            className="text-sm font-semibold leading-6 text-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            Submit to SAP
+          </button>
+        </div>
       </div>
     </form>
   );
