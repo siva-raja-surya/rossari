@@ -318,7 +318,12 @@ app.post("/api/forms", authenticateToken, async (req, res) => {
       .map((p) => p.bankReferenceNumber)
       .filter(Boolean); // Remove empty/null
 
-    if (newUTRs.length > 0) {
+    // Filter UTRs to check:
+    // Ignore 6-digit UTRs (allow duplicates).
+    // Check 10-22 alphanumeric UTRs (disallow duplicates).
+    const utrsToCheck = newUTRs.filter((ref) => !/^\d{6}$/.test(ref));
+
+    if (utrsToCheck.length > 0) {
       // Query to find if any of these UTRs exist in previous submissions for this user
       // We look into the JSONB array 'paymentDetails'
       const utrQuery = `
@@ -329,7 +334,7 @@ app.post("/api/forms", authenticateToken, async (req, res) => {
         AND pd->>'bankReferenceNumber' = ANY($2)
       `;
 
-      const utrCheck = await db.query(utrQuery, [userEmail, newUTRs]);
+      const utrCheck = await db.query(utrQuery, [userEmail, utrsToCheck]);
 
       if (utrCheck.rows.length > 0) {
         const duplicates = [...new Set(utrCheck.rows.map((r) => r.ref))].join(
@@ -341,32 +346,8 @@ app.post("/api/forms", authenticateToken, async (req, res) => {
       }
     }
 
-    // 2. Check for Duplicate Invoice Numbers for this user
-    // Only if invoiceDetails exists
-    const newInvoices = (formData.invoiceDetails || [])
-      .map((i) => i.invoiceNumber)
-      .filter(Boolean);
+    // NOTE: Duplicate Invoice Number check removed as requested.
 
-    if (newInvoices.length > 0) {
-      const invQuery = `
-        SELECT inv->>'invoiceNumber' as num
-        FROM rossari.submissions,
-        jsonb_array_elements(form_data->'invoiceDetails') inv
-        WHERE user_email = $1
-        AND inv->>'invoiceNumber' = ANY($2)
-      `;
-
-      const invCheck = await db.query(invQuery, [userEmail, newInvoices]);
-
-      if (invCheck.rows.length > 0) {
-        const duplicates = [...new Set(invCheck.rows.map((r) => r.num))].join(
-          ", "
-        );
-        return res.status(400).json({
-          error: `Duplicate Invoice Number found: ${duplicates}. You have already submitted these.`,
-        });
-      }
-    }
     // --- DUPLICATE CHECK END ---
 
     const result = await db.query(

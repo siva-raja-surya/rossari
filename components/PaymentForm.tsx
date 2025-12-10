@@ -250,7 +250,8 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
 
     if (isCustomerRequired) {
       if (customerCode.length !== 8) {
-        newFieldErrors["customerCode"] = "Customer code must be 8 digits.";
+        newFieldErrors["customerCode"] =
+          "Customer code must be 8 digits number.";
         hasError = true;
       } else if (customerCodeError) {
         newFieldErrors["customerCode"] = customerCodeError;
@@ -259,17 +260,23 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     }
 
     // 2. Payment Details Validation
-    const bankRefRegex = /^[a-zA-Z0-9]{10,22}$/;
+    const bankRef6DigitRegex = /^\d{6}$/;
+    const bankRefAlphaRegex = /^[a-zA-Z0-9]{10,22}$/;
 
     paymentDetails.forEach((p) => {
       const ref = p.bankReferenceNumber?.trim() || "";
       if (!ref) {
         newFieldErrors[`${p.id}-bankReferenceNumber`] = "Required";
         hasError = true;
-      } else if (!bankRefRegex.test(ref)) {
-        newFieldErrors[`${p.id}-bankReferenceNumber`] =
-          "Must be 10-22 alphanumeric characters.";
-        hasError = true;
+      } else {
+        const is6Digit = bankRef6DigitRegex.test(ref);
+        const isAlpha = bankRefAlphaRegex.test(ref);
+
+        if (!is6Digit && !isAlpha) {
+          newFieldErrors[`${p.id}-bankReferenceNumber`] =
+            "Must be 6 digits OR 10-22 alphanumeric.";
+          hasError = true;
+        }
       }
 
       if (p.amount === null || p.amount === undefined) {
@@ -280,7 +287,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
 
     if (invoiceType === InvoiceType.SPECIFIC) {
       // 3. Invoice Details Validation
-      const seenInvoices = new Map<string, string[]>();
+      // NOTE: Duplicate invoice check removed as per requirement "allow duplicate invoice in Invoice Details"
 
       invoiceDetails.forEach((i) => {
         const num = i.invoiceNumber?.trim() || "";
@@ -296,23 +303,10 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               "Must be alphanumeric (not only alphabets).";
             hasError = true;
           }
-
-          const normalized = num.toLowerCase();
-          if (!seenInvoices.has(normalized)) seenInvoices.set(normalized, []);
-          seenInvoices.get(normalized)!.push(i.id);
         }
 
         if (i.invoiceAmount === null || i.invoiceAmount === undefined) {
           newFieldErrors[`${i.id}-invoiceAmount`] = "Required";
-          hasError = true;
-        }
-      });
-
-      seenInvoices.forEach((ids, _) => {
-        if (ids.length > 1) {
-          ids.forEach((id) => {
-            newFieldErrors[`${id}-invoiceNumber`] = "Duplicate Invoice Number";
-          });
           hasError = true;
         }
       });
