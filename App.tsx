@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Routes,
   Route,
@@ -74,9 +74,13 @@ const App: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const authCheckRef = useRef(false);
 
   // Validate token on mount
   useEffect(() => {
+    if (authCheckRef.current) return;
+    authCheckRef.current = true;
+
     const validateSession = async () => {
       const token = localStorage.getItem("token");
       if (!token) {

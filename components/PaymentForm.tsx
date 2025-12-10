@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   InvoiceType,
@@ -6,18 +6,19 @@ import {
   InvoiceDetail,
   FormSubmission,
   ExtractedData,
+  Entity,
+  Division,
+  BankAccount,
 } from "../types";
-import {
-  CUSTOMERS,
-  ENTITIES,
-  DIVISIONS,
-  BANK_ACCOUNTS,
-  CREDIT_CONTROL_AREAS,
-  PROFIT_CENTERS,
-} from "../constants";
+import { CUSTOMERS } from "../constants"; // Keeping customers static for now as per instruction, only removed requested fields
 
 interface PaymentFormProps {
   // Props are now largely handled by Router state/Location
+}
+
+interface ProfitCenter {
+  code: string;
+  entityCode: string;
 }
 
 const formatCurrency = (amount: number): string => {
@@ -34,6 +35,20 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
   const location = useLocation();
   // Retrieve initial data passed from UploadAdvise via router state
   const initialData = location.state?.initialData as ExtractedData | undefined;
+
+  // Master Data State
+  const [masterEntities, setMasterEntities] = useState<Entity[]>([]);
+  const [masterDivisions, setMasterDivisions] = useState<Division[]>([]);
+  const [masterBankAccounts, setMasterBankAccounts] = useState<BankAccount[]>(
+    []
+  );
+  const [masterCreditControlAreas, setMasterCreditControlAreas] = useState<
+    string[]
+  >([]);
+  const [masterProfitCenters, setMasterProfitCenters] = useState<
+    ProfitCenter[]
+  >([]);
+  const [isLoadingMasterData, setIsLoadingMasterData] = useState(true);
 
   const [invoiceType, setInvoiceType] = useState<InvoiceType>(
     InvoiceType.SPECIFIC
@@ -75,6 +90,39 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
 
   const [customerCodeError, setCustomerCodeError] = useState("");
 
+  const dataFetchedRef = useRef(false);
+
+  // Fetch Master Data
+  useEffect(() => {
+    if (dataFetchedRef.current) return;
+    dataFetchedRef.current = true;
+
+    const fetchMasterData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("/api/master-data", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setMasterEntities(data.entities);
+          setMasterDivisions(data.divisions);
+          setMasterBankAccounts(data.bankAccounts);
+          setMasterCreditControlAreas(data.creditControlAreas);
+          setMasterProfitCenters(data.profitCenters);
+        }
+      } catch (error) {
+        console.error("Failed to load master data", error);
+        setFormError("Failed to load form options. Please reload the page.");
+      } finally {
+        setIsLoadingMasterData(false);
+      }
+    };
+
+    fetchMasterData();
+  }, []);
+
   useEffect(() => {
     if (initialData) {
       setInvoiceType(initialData.invoiceType || InvoiceType.SPECIFIC);
@@ -89,8 +137,8 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
       setRemark(initialData.remark || "");
 
       // Auto-select entity based on bank account
-      if (initialData.bankAccount) {
-        const matchedAccount = BANK_ACCOUNTS.find(
+      if (initialData.bankAccount && masterBankAccounts.length > 0) {
+        const matchedAccount = masterBankAccounts.find(
           (acc) =>
             acc.name.toLowerCase() === initialData.bankAccount!.toLowerCase() ||
             acc.glCode === initialData.bankAccount
@@ -108,7 +156,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
         setInvoiceDetails(initialData.invoiceDetails);
       }
     }
-  }, [initialData]);
+  }, [initialData, masterBankAccounts]);
 
   useEffect(() => {
     if (customerCode.length === 8) {
@@ -363,13 +411,13 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
   };
 
   const filteredDivisions = entityCode
-    ? DIVISIONS.filter((d) => d.entityCode === entityCode)
+    ? masterDivisions.filter((d) => d.entityCode === entityCode)
     : [];
   const filteredBankAccounts = entityCode
-    ? BANK_ACCOUNTS.filter((b) => b.entityCode === entityCode)
+    ? masterBankAccounts.filter((b) => b.entityCode === entityCode)
     : [];
   const filteredProfitCenters = entityCode
-    ? PROFIT_CENTERS[entityCode] || []
+    ? masterProfitCenters.filter((p) => p.entityCode === entityCode)
     : [];
 
   const getInputClass = (errorKey?: string) => {
@@ -380,6 +428,34 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
         : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
     }`;
   };
+
+  if (isLoadingMasterData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <svg
+          className="animate-spin h-8 w-8 text-blue-600"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <span className="ml-2 text-gray-600">Loading form options...</span>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -457,6 +533,9 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               value={entityCode}
               onChange={(e) => {
                 setEntityCode(e.target.value);
+                setDivisionCode(""); // Reset dependent fields
+                setBankAccount("");
+                setProfitCenter("");
                 if (fieldErrors["entityCode"]) {
                   const newErrors = { ...fieldErrors };
                   delete newErrors["entityCode"];
@@ -466,7 +545,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               className={getInputClass("entityCode")}
             >
               <option value="">Select Entity</option>
-              {ENTITIES.map((e) => (
+              {masterEntities.map((e) => (
                 <option key={e.code} value={e.code}>
                   {e.name}
                 </option>
@@ -551,7 +630,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
             >
               <option value="">Select Area</option>
-              {CREDIT_CONTROL_AREAS.map((a) => (
+              {masterCreditControlAreas.map((a) => (
                 <option key={a} value={a}>
                   {a}
                 </option>
@@ -570,8 +649,8 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
             >
               <option value="">Select Center</option>
               {filteredProfitCenters.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+                <option key={p.code} value={p.code}>
+                  {p.code}
                 </option>
               ))}
             </select>

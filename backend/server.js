@@ -59,6 +59,99 @@ const initDb = async () => {
       );
     `);
 
+    // --- Master Data Tables ---
+
+    // 1. Entities
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_entities (
+        code VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL
+      );
+    `);
+
+    // 2. Divisions
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_divisions (
+        code VARCHAR(50),
+        entity_code VARCHAR(50),
+        name VARCHAR(255) NOT NULL,
+        PRIMARY KEY (code, entity_code)
+      );
+    `);
+
+    // 3. Bank Accounts
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_bank_accounts (
+        gl_code VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        entity_code VARCHAR(50)
+      );
+    `);
+
+    // 4. Credit Control Areas
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_credit_control_areas (
+        code VARCHAR(50) PRIMARY KEY
+      );
+    `);
+
+    // 5. Profit Centers
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_profit_centers (
+        code VARCHAR(50),
+        entity_code VARCHAR(50),
+        PRIMARY KEY (code, entity_code)
+      );
+    `);
+
+    // --- Seed Master Data (Only if empty) ---
+    const entityCheck = await db.query("SELECT 1 FROM master_entities LIMIT 1");
+    if (entityCheck.rows.length === 0) {
+      console.log("Seeding master data...");
+
+      // Entities
+      await db.query(`
+        INSERT INTO master_entities (code, name) VALUES 
+        ('1000', 'Reliance Industries Ltd'),
+        ('2000', 'Tata Motors'),
+        ('3000', 'Infosys Technologies')
+      `);
+
+      // Divisions
+      await db.query(`
+        INSERT INTO master_divisions (code, name, entity_code) VALUES 
+        ('10', 'Petrochemicals', '1000'),
+        ('20', 'Retail', '1000'),
+        ('30', 'Passenger Vehicles', '2000'),
+        ('40', 'Commercial Vehicles', '2000'),
+        ('50', 'Financial Services', '3000')
+      `);
+
+      // Bank Accounts
+      await db.query(`
+        INSERT INTO master_bank_accounts (gl_code, name, entity_code) VALUES 
+        ('11001101', 'AXIS', '1000'),
+        ('11001102', 'HDFC', '1000'),
+        ('21001101', 'ICICI', '2000'),
+        ('31001101', 'HDFC CC R', '3000')
+      `);
+
+      // Credit Control Areas
+      await db.query(`
+        INSERT INTO master_credit_control_areas (code) VALUES 
+        ('A001'), ('A002'), ('B001'), ('B002')
+      `);
+
+      // Profit Centers
+      await db.query(`
+        INSERT INTO master_profit_centers (code, entity_code) VALUES 
+        ('PC1000-A', '1000'), ('PC1000-B', '1000'),
+        ('PC2000-A', '2000'), ('PC2000-C', '2000'),
+        ('PC3000-D', '3000'), ('PC3000-E', '3000')
+      `);
+      console.log("Master data seeded.");
+    }
+
     console.log("Database schema initialized successfully.");
   } catch (err) {
     console.error("Database initialization failed:", err);
@@ -335,6 +428,41 @@ app.get("/api/forms", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch forms" });
+  }
+});
+
+// 6. Get Master Data
+app.get("/api/master-data", authenticateToken, async (req, res) => {
+  try {
+    const [entities, divisions, banks, creditAreas, profitCenters] =
+      await Promise.all([
+        db.query(
+          "SELECT code, name FROM rossari.master_entities ORDER BY name"
+        ),
+        db.query(
+          'SELECT code, name, entity_code as "entityCode" FROM rossari.master_divisions ORDER BY name'
+        ),
+        db.query(
+          'SELECT gl_code as "glCode", name, entity_code as "entityCode" FROM rossari.master_bank_accounts ORDER BY name'
+        ),
+        db.query(
+          "SELECT code FROM rossari.master_credit_control_areas ORDER BY code"
+        ),
+        db.query(
+          'SELECT code, entity_code as "entityCode" FROM rossari.master_profit_centers ORDER BY code'
+        ),
+      ]);
+
+    res.json({
+      entities: entities.rows,
+      divisions: divisions.rows,
+      bankAccounts: banks.rows,
+      creditControlAreas: creditAreas.rows.map((r) => r.code),
+      profitCenters: profitCenters.rows,
+    });
+  } catch (err) {
+    console.error("Master Data Error:", err);
+    res.status(500).json({ error: "Failed to fetch master data" });
   }
 });
 
