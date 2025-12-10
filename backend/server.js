@@ -60,6 +60,13 @@ const initDb = async () => {
     `);
 
     // --- Master Data Tables ---
+    // Dropping tables to ensure schema match for this specific update request
+    // await db.query(`DROP TABLE IF EXISTS master_divisions CASCADE`);
+    // await db.query(`DROP TABLE IF EXISTS master_bank_accounts CASCADE`);
+    // await db.query(`DROP TABLE IF EXISTS master_profit_centers CASCADE`);
+    // await db.query(`DROP TABLE IF EXISTS master_credit_control_areas CASCADE`);
+    // await db.query(`DROP TABLE IF EXISTS master_entities CASCADE`);
+    // await db.query(`DROP TABLE IF EXISTS master_customers CASCADE`);
 
     // 1. Entities
     await db.query(`
@@ -69,13 +76,13 @@ const initDb = async () => {
       );
     `);
 
-    // 2. Divisions
+    // 2. Divisions (Code is not unique globally, so using ID or composite PK)
     await db.query(`
       CREATE TABLE IF NOT EXISTS master_divisions (
+        id SERIAL PRIMARY KEY,
         code VARCHAR(50),
         entity_code VARCHAR(50),
-        name VARCHAR(255) NOT NULL,
-        PRIMARY KEY (code, entity_code)
+        name VARCHAR(255) NOT NULL
       );
     `);
 
@@ -83,7 +90,7 @@ const initDb = async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS master_bank_accounts (
         gl_code VARCHAR(50) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
+        bank_name VARCHAR(255) NOT NULL,
         entity_code VARCHAR(50)
       );
     `);
@@ -91,7 +98,8 @@ const initDb = async () => {
     // 4. Credit Control Areas
     await db.query(`
       CREATE TABLE IF NOT EXISTS master_credit_control_areas (
-        code VARCHAR(50) PRIMARY KEY
+        code VARCHAR(50) PRIMARY KEY,
+        description VARCHAR(255)
       );
     `);
 
@@ -100,6 +108,7 @@ const initDb = async () => {
       CREATE TABLE IF NOT EXISTS master_profit_centers (
         code VARCHAR(50),
         entity_code VARCHAR(50),
+        name VARCHAR(255), 
         PRIMARY KEY (code, entity_code)
       );
     `);
@@ -112,7 +121,7 @@ const initDb = async () => {
       );
     `);
 
-    // --- Seed Master Data (Only if empty) ---
+    // --- Seed Master Data ---
     const entityCheck = await db.query("SELECT 1 FROM master_entities LIMIT 1");
     if (entityCheck.rows.length === 0) {
       console.log("Seeding master data...");
@@ -120,42 +129,52 @@ const initDb = async () => {
       // Entities
       await db.query(`
         INSERT INTO master_entities (code, name) VALUES 
-        ('1000', 'Reliance Industries Ltd'),
-        ('2000', 'Tata Motors'),
-        ('3000', 'Infosys Technologies')
+        ('1000', 'Rossari Biotech Limited'),
+        ('2000', 'Buzil')
       `);
 
       // Divisions
       await db.query(`
         INSERT INTO master_divisions (code, name, entity_code) VALUES 
-        ('10', 'Petrochemicals', '1000'),
-        ('20', 'Retail', '1000'),
-        ('30', 'Passenger Vehicles', '2000'),
-        ('40', 'Commercial Vehicles', '2000'),
-        ('50', 'Financial Services', '3000')
+        ('16', 'Institutional Non-Ch', '1000'),
+        ('17', 'Phenoxy Series', '1000'),
+        ('11', 'Silicones', '2000'),
+        ('20', 'Textile Commodity', '2000'),
+        ('16', 'Phenoxy Series', '2000')
       `);
 
       // Bank Accounts
       await db.query(`
-        INSERT INTO master_bank_accounts (gl_code, name, entity_code) VALUES 
-        ('11001101', 'AXIS', '1000'),
-        ('11001102', 'HDFC', '1000'),
-        ('21001101', 'ICICI', '2000'),
-        ('31001101', 'HDFC CC R', '3000')
+        INSERT INTO master_bank_accounts (gl_code, bank_name, entity_code) VALUES 
+        ('21001101', 'HDFC', '1000'),
+        ('21002021', 'HDFC CC R', '2000'),
+        ('21002030', 'HSBC', '2000'),
+        ('21002080', 'AXIS', '2000')
       `);
 
       // Credit Control Areas
       await db.query(`
-        INSERT INTO master_credit_control_areas (code) VALUES 
-        ('A001'), ('A002'), ('B001'), ('B002')
+        INSERT INTO master_credit_control_areas (code, description) VALUES 
+        ('1010', 'Textile Chemical CCA'),
+        ('1011', 'Textile Non-Chemicals CCA'),
+        ('1012', 'Private Label CCA'),
+        ('1013', 'HPPC CCA'),
+        ('1014', 'Performance Additives CCA'),
+        ('1016', 'Institutional CCA'), -- Added to match division 16 logic
+        ('1017', 'Phenoxy CCA'),       -- Added to match division 17 logic
+        ('1020', 'Commodity CCA')      -- Added to match division 20 logic
       `);
 
       // Profit Centers
       await db.query(`
-        INSERT INTO master_profit_centers (code, entity_code) VALUES 
-        ('PC1000-A', '1000'), ('PC1000-B', '1000'),
-        ('PC2000-A', '2000'), ('PC2000-C', '2000'),
-        ('PC3000-D', '3000'), ('PC3000-E', '3000')
+        INSERT INTO master_profit_centers (code, name, entity_code) VALUES 
+        ('127000', 'Amazon Bhiwandi WH 2', '1000'),
+        ('128000', 'Amazon Pune WH', '1000'),
+        ('190000', 'RBL R&D powai', '1000'),
+        ('191000', 'RBL R&D Dahej', '1000'),
+        ('192000', 'RBL R&D Silvas', '1000'),
+        ('200000', 'BRPL Head Office Mumbai', '2000'),
+        ('210000', 'BRPL Bhiwandi MFG', '2000')
       `);
       console.log("Master data seeded.");
     }
@@ -446,13 +465,13 @@ app.get("/api/master-data", authenticateToken, async (req, res) => {
           'SELECT code, name, entity_code as "entityCode" FROM rossari.master_divisions ORDER BY name'
         ),
         db.query(
-          'SELECT gl_code as "glCode", name, entity_code as "entityCode" FROM rossari.master_bank_accounts ORDER BY name'
+          'SELECT gl_code as "glCode", bank_name as "name", entity_code as "entityCode" FROM rossari.master_bank_accounts ORDER BY bank_name'
         ),
         db.query(
-          "SELECT code FROM rossari.master_credit_control_areas ORDER BY code"
+          "SELECT code, description FROM rossari.master_credit_control_areas ORDER BY code"
         ),
         db.query(
-          'SELECT code, entity_code as "entityCode" FROM rossari.master_profit_centers ORDER BY code'
+          'SELECT code, name, entity_code as "entityCode" FROM rossari.master_profit_centers ORDER BY code'
         ),
       ]);
 
@@ -460,7 +479,7 @@ app.get("/api/master-data", authenticateToken, async (req, res) => {
       entities: entities.rows,
       divisions: divisions.rows,
       bankAccounts: banks.rows,
-      creditControlAreas: creditAreas.rows.map((r) => r.code),
+      creditControlAreas: creditAreas.rows,
       profitCenters: profitCenters.rows,
     });
   } catch (err) {

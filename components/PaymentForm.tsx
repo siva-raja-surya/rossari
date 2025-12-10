@@ -17,7 +17,13 @@ interface PaymentFormProps {
 
 interface ProfitCenter {
   code: string;
+  name: string;
   entityCode: string;
+}
+
+interface CreditControlArea {
+  code: string;
+  description: string;
 }
 
 const formatCurrency = (amount: number): string => {
@@ -42,7 +48,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     []
   );
   const [masterCreditControlAreas, setMasterCreditControlAreas] = useState<
-    string[]
+    CreditControlArea[]
   >([]);
   const [masterProfitCenters, setMasterProfitCenters] = useState<
     ProfitCenter[]
@@ -428,6 +434,18 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     ? masterProfitCenters.filter((p) => p.entityCode === entityCode)
     : [];
 
+  // Filter CCA based on Division Code (Last 2 digits rule)
+  const filteredCreditControlAreas = useMemo(() => {
+    if (!divisionCode) return [];
+    // Extract last 2 digits of the Division Code (e.g., '16' from '16', '10' from '1010')
+    // Assuming divisionCode itself is just '16', '20', etc.
+    const divSuffix = divisionCode.slice(-2);
+
+    return masterCreditControlAreas.filter((cca) =>
+      cca.code.endsWith(divSuffix)
+    );
+  }, [divisionCode, masterCreditControlAreas]);
+
   const getInputClass = (errorKey?: string) => {
     const hasError = errorKey && fieldErrors[errorKey];
     return `mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
@@ -548,6 +566,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 setDivisionCode(""); // Reset dependent fields
                 setBankAccount("");
                 setProfitCenter("");
+                setCreditControlArea("");
                 if (fieldErrors["entityCode"]) {
                   const newErrors = { ...fieldErrors };
                   delete newErrors["entityCode"];
@@ -559,7 +578,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               <option value="">Select Entity</option>
               {masterEntities.map((e) => (
                 <option key={e.code} value={e.code}>
-                  {e.name}
+                  {e.code} - {e.name}
                 </option>
               ))}
             </select>
@@ -575,14 +594,17 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
             </label>
             <select
               value={divisionCode}
-              onChange={(e) => setDivisionCode(e.target.value)}
+              onChange={(e) => {
+                setDivisionCode(e.target.value);
+                setCreditControlArea(""); // Reset CCA when division changes
+              }}
               disabled={!entityCode}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
             >
               <option value="">Select Division</option>
-              {filteredDivisions.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.name}
+              {filteredDivisions.map((d, idx) => (
+                <option key={`${d.code}-${idx}`} value={d.code}>
+                  {d.code} - {d.name}
                 </option>
               ))}
             </select>
@@ -622,7 +644,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               <option value="">Select Bank</option>
               {filteredBankAccounts.map((b) => (
                 <option key={b.glCode} value={b.glCode}>
-                  {b.name} - {b.glCode}
+                  {b.name}
                 </option>
               ))}
             </select>
@@ -639,15 +661,23 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
             <select
               value={creditControlArea}
               onChange={(e) => setCreditControlArea(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+              disabled={
+                !divisionCode || filteredCreditControlAreas.length === 0
+              }
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
             >
               <option value="">Select Area</option>
-              {masterCreditControlAreas.map((a) => (
-                <option key={a} value={a}>
-                  {a}
+              {filteredCreditControlAreas.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.code} - {a.description}
                 </option>
               ))}
             </select>
+            {divisionCode && filteredCreditControlAreas.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                No matching area found for this division
+              </p>
+            )}
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
@@ -662,7 +692,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               <option value="">Select Center</option>
               {filteredProfitCenters.map((p) => (
                 <option key={p.code} value={p.code}>
-                  {p.code}
+                  {p.code} - {p.name}
                 </option>
               ))}
             </select>
