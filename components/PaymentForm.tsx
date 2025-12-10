@@ -267,6 +267,23 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
       newFieldErrors["bankAccount"] = "Bank Account is required";
       hasError = true;
     }
+    // New Mandatory Fields
+    if (!divisionCode) {
+      newFieldErrors["divisionCode"] = "Division Code is required";
+      hasError = true;
+    }
+    if (!caseType) {
+      newFieldErrors["caseType"] = "Case Type is required";
+      hasError = true;
+    }
+    if (!creditControlArea) {
+      newFieldErrors["creditControlArea"] = "Credit Control Area is required";
+      hasError = true;
+    }
+    if (!profitCenter) {
+      newFieldErrors["profitCenter"] = "Profit Center is required";
+      hasError = true;
+    }
 
     if (isCustomerRequired) {
       if (customerCode.length !== 8) {
@@ -389,11 +406,11 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
         customerCode: isCustomerRequired ? customerCode : undefined,
         customerName: isCustomerRequired ? customerName : undefined,
         entityCode,
-        divisionCode: divisionCode || undefined,
-        caseType: caseType || undefined,
+        divisionCode,
+        caseType,
         bankAccount,
-        creditControlArea: creditControlArea || undefined,
-        profitCenter: profitCenter || undefined,
+        creditControlArea,
+        profitCenter,
         remark: remark || undefined,
         paymentDetails,
         invoiceDetails:
@@ -590,16 +607,21 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
-              Division Code
+              Division Code *
             </label>
             <select
               value={divisionCode}
               onChange={(e) => {
                 setDivisionCode(e.target.value);
                 setCreditControlArea(""); // Reset CCA when division changes
+                if (fieldErrors["divisionCode"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["divisionCode"];
+                  setFieldErrors(newErrors);
+                }
               }}
               disabled={!entityCode}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
+              className={getInputClass("divisionCode")}
             >
               <option value="">Select Division</option>
               {filteredDivisions.map((d, idx) => (
@@ -608,21 +630,38 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 </option>
               ))}
             </select>
+            {fieldErrors["divisionCode"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["divisionCode"]}
+              </p>
+            )}
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
-              Case Type
+              Case Type *
             </label>
             <select
               value={caseType}
-              onChange={(e) => setCaseType(e.target.value as any)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+              onChange={(e) => {
+                setCaseType(e.target.value as any);
+                if (fieldErrors["caseType"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["caseType"];
+                  setFieldErrors(newErrors);
+                }
+              }}
+              className={getInputClass("caseType")}
             >
               <option value="">Select Type</option>
               <option value="Domestic">Domestic</option>
               <option value="Import">Import</option>
               <option value="Export">Export</option>
             </select>
+            {fieldErrors["caseType"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["caseType"]}
+              </p>
+            )}
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
@@ -656,15 +695,22 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
-              Credit Control Area
+              Credit Control Area *
             </label>
             <select
               value={creditControlArea}
-              onChange={(e) => setCreditControlArea(e.target.value)}
+              onChange={(e) => {
+                setCreditControlArea(e.target.value);
+                if (fieldErrors["creditControlArea"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["creditControlArea"];
+                  setFieldErrors(newErrors);
+                }
+              }}
               disabled={
                 !divisionCode || filteredCreditControlAreas.length === 0
               }
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
+              className={getInputClass("creditControlArea")}
             >
               <option value="">Select Area</option>
               {filteredCreditControlAreas.map((a) => (
@@ -673,6 +719,11 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 </option>
               ))}
             </select>
+            {fieldErrors["creditControlArea"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["creditControlArea"]}
+              </p>
+            )}
             {divisionCode && filteredCreditControlAreas.length === 0 && (
               <p className="text-xs text-gray-500 mt-1">
                 No matching area found for this division
@@ -681,13 +732,20 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
           </div>
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
-              Profit Center
+              Profit Center *
             </label>
             <select
               value={profitCenter}
-              onChange={(e) => setProfitCenter(e.target.value)}
+              onChange={(e) => {
+                setProfitCenter(e.target.value);
+                if (fieldErrors["profitCenter"]) {
+                  const newErrors = { ...fieldErrors };
+                  delete newErrors["profitCenter"];
+                  setFieldErrors(newErrors);
+                }
+              }}
               disabled={!entityCode}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm disabled:bg-gray-100 sm:text-sm"
+              className={getInputClass("profitCenter")}
             >
               <option value="">Select Center</option>
               {filteredProfitCenters.map((p) => (
@@ -696,6 +754,11 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 </option>
               ))}
             </select>
+            {fieldErrors["profitCenter"] && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors["profitCenter"]}
+              </p>
+            )}
           </div>
           <div className="sm:col-span-full">
             <label className="block text-sm font-medium leading-6 text-gray-900">
