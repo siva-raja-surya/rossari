@@ -47,15 +47,6 @@ const initDb = async () => {
       );
     `);
 
-    // --- Master Data Tables ---
-    // Dropping tables to ensure schema match for this specific update request
-    await db.query(`DROP TABLE IF EXISTS master_divisions CASCADE`);
-    await db.query(`DROP TABLE IF EXISTS master_bank_accounts CASCADE`);
-    await db.query(`DROP TABLE IF EXISTS master_profit_centers CASCADE`);
-    await db.query(`DROP TABLE IF EXISTS master_credit_control_areas CASCADE`);
-    await db.query(`DROP TABLE IF EXISTS master_entities CASCADE`);
-    await db.query(`DROP TABLE IF EXISTS master_customers CASCADE`);
-
     // 1. Entities
     await db.query(`
       CREATE TABLE IF NOT EXISTS master_entities (
