@@ -10,7 +10,6 @@ import {
   Division,
   BankAccount,
 } from "../types";
-import { CUSTOMERS } from "../constants"; // Keeping customers static for now as per instruction, only removed requested fields
 
 interface PaymentFormProps {
   // Props are now largely handled by Router state/Location
@@ -158,20 +157,35 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     }
   }, [initialData, masterBankAccounts]);
 
+  // Customer Lookup
   useEffect(() => {
-    if (customerCode.length === 8) {
-      const customer = CUSTOMERS.find((c) => c.code === customerCode);
-      if (customer) {
-        setCustomerName(customer.name);
-        setCustomerCodeError("");
+    const fetchCustomer = async () => {
+      if (customerCode.length === 8) {
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`/api/customers/${customerCode}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            setCustomerName(data.name);
+            setCustomerCodeError("");
+          } else {
+            setCustomerName("");
+            setCustomerCodeError("Customer code not found.");
+          }
+        } catch (e) {
+          setCustomerName("");
+          setCustomerCodeError("Error searching customer.");
+        }
       } else {
         setCustomerName("");
-        setCustomerCodeError("Invalid customer code.");
+        setCustomerCodeError(""); // Clear error while typing or if empty
       }
-    } else {
-      setCustomerName("");
-      setCustomerCodeError(""); // Clear error for partial/empty input
-    }
+    };
+
+    fetchCustomer();
   }, [customerCode]);
 
   const invoiceTotals = useMemo(() => {
@@ -500,6 +514,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               }}
               disabled={!isCustomerRequired}
               className={getInputClass("customerCode")}
+              placeholder="Enter 8 digits"
             />
             {fieldErrors["customerCode"] && (
               <p className="mt-1 text-xs text-red-600">
@@ -517,6 +532,9 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               readOnly
               className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm"
             />
+            {customerCodeError && (
+              <p className="mt-1 text-xs text-red-600">{customerCodeError}</p>
+            )}
           </div>
 
           <div className="sm:col-span-3 lg:col-span-2">

@@ -104,6 +104,14 @@ const initDb = async () => {
       );
     `);
 
+    // 6. Customers
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_customers (
+        account_number VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL
+      );
+    `);
+
     // --- Seed Master Data (Only if empty) ---
     const entityCheck = await db.query("SELECT 1 FROM master_entities LIMIT 1");
     if (entityCheck.rows.length === 0) {
@@ -150,6 +158,20 @@ const initDb = async () => {
         ('PC3000-D', '3000'), ('PC3000-E', '3000')
       `);
       console.log("Master data seeded.");
+    }
+
+    // Seed Customers
+    const customerCheck = await db.query(
+      "SELECT 1 FROM master_customers LIMIT 1"
+    );
+    if (customerCheck.rows.length === 0) {
+      await db.query(`
+        INSERT INTO master_customers (account_number, name) VALUES 
+        ('20000107', 'Rajesh Petrochem'),
+        ('20000109', 'RBI chemicals'),
+        ('20000140', 'AR Pvt Ltd')
+      `);
+      console.log("Customer data seeded.");
     }
 
     console.log("Database schema initialized successfully.");
@@ -444,6 +466,26 @@ app.get("/api/master-data", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("Master Data Error:", err);
     res.status(500).json({ error: "Failed to fetch master data" });
+  }
+});
+
+// 7. Get Customer by Code
+app.get("/api/customers/:code", authenticateToken, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const result = await db.query(
+      "SELECT name FROM rossari.master_customers WHERE account_number = $1",
+      [code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    res.json({ name: result.rows[0].name });
+  } catch (err) {
+    console.error("Customer Lookup Error:", err);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
