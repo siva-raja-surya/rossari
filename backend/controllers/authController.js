@@ -1,3 +1,4 @@
+const mailSender = require("../utils/mailSender");
 const db = require("../db");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "rossari_secret_key_2025";
@@ -18,7 +19,24 @@ exports.sendOtp = async (req, res) => {
        DO UPDATE SET otp_code = $2, created_at = CURRENT_TIMESTAMP`,
       [email, otp]
     );
-
+    const mailResponse = await mailSender(
+      [{ email: email }],
+      "Password creation",
+      `
+      <h3>Your OTP Code is:</h3>
+      <h1>${otp}</h1>
+      <p>This OTP is valid for 5 minutes only.</p>
+      `,
+      "OTP for Rossari"
+    );
+    if (mailResponse.success) {
+    } else {
+      // Log the error message and handle accordingly
+      console.error("Failed to send verification email:", mailResponse.message);
+      return res
+        .status(501)
+        .json({ success: false, error: mailResponse.message });
+    }
     res.json({ message: "OTP sent successfully" });
   } catch (err) {
     console.error(err);

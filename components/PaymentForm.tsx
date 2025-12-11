@@ -246,9 +246,8 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     setter((prev) => prev.filter((item) => (item as any).id !== id));
   };
 
-  const isCustomerRequired =
-    invoiceType === InvoiceType.ADVANCE ||
-    invoiceType === InvoiceType.OUTSTANDING;
+  // Determine if general details (Customer, Division, CCA, Profit Center) are required
+  const isGeneralDetailsRequired = invoiceType !== InvoiceType.SPECIFIC;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,25 +266,22 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
       newFieldErrors["bankAccount"] = "Bank Account is required";
       hasError = true;
     }
-    // New Mandatory Fields
-    if (!divisionCode) {
-      newFieldErrors["divisionCode"] = "Division Code is required";
-      hasError = true;
-    }
-    if (!caseType) {
-      newFieldErrors["caseType"] = "Case Type is required";
-      hasError = true;
-    }
-    if (!creditControlArea) {
-      newFieldErrors["creditControlArea"] = "Credit Control Area is required";
-      hasError = true;
-    }
-    if (!profitCenter) {
-      newFieldErrors["profitCenter"] = "Profit Center is required";
-      hasError = true;
-    }
 
-    if (isCustomerRequired) {
+    // Validation for General Details (Hidden for SPECIFIC)
+    if (isGeneralDetailsRequired) {
+      if (!divisionCode) {
+        newFieldErrors["divisionCode"] = "Division Code is required";
+        hasError = true;
+      }
+      if (!creditControlArea) {
+        newFieldErrors["creditControlArea"] = "Credit Control Area is required";
+        hasError = true;
+      }
+      if (!profitCenter) {
+        newFieldErrors["profitCenter"] = "Profit Center is required";
+        hasError = true;
+      }
+
       if (customerCode.length !== 8) {
         newFieldErrors["customerCode"] =
           "Customer code must be 8 digits number.";
@@ -294,6 +290,12 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
         newFieldErrors["customerCode"] = customerCodeError;
         hasError = true;
       }
+    }
+
+    // Case Type is always mandatory
+    if (!caseType) {
+      newFieldErrors["caseType"] = "Case Type is required";
+      hasError = true;
     }
 
     // 2. Payment Details Validation
@@ -347,10 +349,13 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
           }
         }
 
-        if (i.invoiceAmount === null || i.invoiceAmount === undefined) {
-          newFieldErrors[`${i.id}-invoiceAmount`] = "Required";
+        // Invoice Amount Paid is mandatory for SPECIFIC
+        if (i.invoiceAmountPaid === null || i.invoiceAmountPaid === undefined) {
+          newFieldErrors[`${i.id}-invoiceAmountPaid`] = "Required";
           hasError = true;
         }
+
+        // Invoice Amount is NOT mandatory as per latest requirement
       });
 
       // 4. Cross-Field Validation
@@ -408,14 +413,18 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     try {
       const payload = {
         invoiceType,
-        customerCode: isCustomerRequired ? customerCode : undefined,
-        customerName: isCustomerRequired ? customerName : undefined,
+        // Only send general details if required (Advance or Outstanding)
+        customerCode: isGeneralDetailsRequired ? customerCode : undefined,
+        customerName: isGeneralDetailsRequired ? customerName : undefined,
+        divisionCode: isGeneralDetailsRequired ? divisionCode : undefined,
+        creditControlArea: isGeneralDetailsRequired
+          ? creditControlArea
+          : undefined,
+        profitCenter: isGeneralDetailsRequired ? profitCenter : undefined,
+
         entityCode,
-        divisionCode,
         caseType,
         bankAccount,
-        creditControlArea,
-        profitCenter,
         remark: remark || undefined,
         paymentDetails,
         invoiceDetails:
@@ -535,47 +544,53 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               ))}
             </select>
           </div>
-          <div className="sm:col-span-3 lg:col-span-2">
-            <label className="block text-sm font-medium leading-6 text-gray-900">
-              Customer Code {isCustomerRequired && "*"}
-            </label>
-            <input
-              type="text"
-              value={customerCode}
-              onChange={(e) => {
-                setCustomerCode(
-                  e.target.value.replace(/[^0-9]/g, "").slice(0, 8)
-                );
-                if (fieldErrors["customerCode"]) {
-                  const newErrors = { ...fieldErrors };
-                  delete newErrors["customerCode"];
-                  setFieldErrors(newErrors);
-                }
-              }}
-              disabled={!isCustomerRequired}
-              className={getInputClass("customerCode")}
-              placeholder="Enter 8 digits"
-            />
-            {fieldErrors["customerCode"] && (
-              <p className="mt-1 text-xs text-red-600">
-                {fieldErrors["customerCode"]}
-              </p>
-            )}
-          </div>
-          <div className="sm:col-span-6 lg:col-span-2">
-            <label className="block text-sm font-medium leading-6 text-gray-900">
-              Customer Name
-            </label>
-            <input
-              type="text"
-              value={customerName}
-              readOnly
-              className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm"
-            />
-            {customerCodeError && (
-              <p className="mt-1 text-xs text-red-600">{customerCodeError}</p>
-            )}
-          </div>
+
+          {isGeneralDetailsRequired && (
+            <>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <label className="block text-sm font-medium leading-6 text-gray-900">
+                  Customer Code *
+                </label>
+                <input
+                  type="text"
+                  value={customerCode}
+                  onChange={(e) => {
+                    setCustomerCode(
+                      e.target.value.replace(/[^0-9]/g, "").slice(0, 8)
+                    );
+                    if (fieldErrors["customerCode"]) {
+                      const newErrors = { ...fieldErrors };
+                      delete newErrors["customerCode"];
+                      setFieldErrors(newErrors);
+                    }
+                  }}
+                  className={getInputClass("customerCode")}
+                  placeholder="Enter 8 digits"
+                />
+                {fieldErrors["customerCode"] && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldErrors["customerCode"]}
+                  </p>
+                )}
+              </div>
+              <div className="sm:col-span-6 lg:col-span-2">
+                <label className="block text-sm font-medium leading-6 text-gray-900">
+                  Customer Name
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  readOnly
+                  className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm"
+                />
+                {customerCodeError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {customerCodeError}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
@@ -610,37 +625,41 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               </p>
             )}
           </div>
-          <div className="sm:col-span-3 lg:col-span-2">
-            <label className="block text-sm font-medium leading-6 text-gray-900">
-              Division Code *
-            </label>
-            <select
-              value={divisionCode}
-              onChange={(e) => {
-                setDivisionCode(e.target.value);
-                setCreditControlArea(""); // Reset CCA when division changes
-                if (fieldErrors["divisionCode"]) {
-                  const newErrors = { ...fieldErrors };
-                  delete newErrors["divisionCode"];
-                  setFieldErrors(newErrors);
-                }
-              }}
-              disabled={!entityCode}
-              className={getInputClass("divisionCode")}
-            >
-              <option value="">Select Division</option>
-              {filteredDivisions.map((d, idx) => (
-                <option key={`${d.code}-${idx}`} value={d.code}>
-                  {d.code} - {d.name}
-                </option>
-              ))}
-            </select>
-            {fieldErrors["divisionCode"] && (
-              <p className="mt-1 text-xs text-red-600">
-                {fieldErrors["divisionCode"]}
-              </p>
-            )}
-          </div>
+
+          {isGeneralDetailsRequired && (
+            <div className="sm:col-span-3 lg:col-span-2">
+              <label className="block text-sm font-medium leading-6 text-gray-900">
+                Division Code *
+              </label>
+              <select
+                value={divisionCode}
+                onChange={(e) => {
+                  setDivisionCode(e.target.value);
+                  setCreditControlArea(""); // Reset CCA when division changes
+                  if (fieldErrors["divisionCode"]) {
+                    const newErrors = { ...fieldErrors };
+                    delete newErrors["divisionCode"];
+                    setFieldErrors(newErrors);
+                  }
+                }}
+                disabled={!entityCode}
+                className={getInputClass("divisionCode")}
+              >
+                <option value="">Select Division</option>
+                {filteredDivisions.map((d, idx) => (
+                  <option key={`${d.code}-${idx}`} value={d.code}>
+                    {d.code} - {d.name}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors["divisionCode"] && (
+                <p className="mt-1 text-xs text-red-600">
+                  {fieldErrors["divisionCode"]}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="sm:col-span-3 lg:col-span-2">
             <label className="block text-sm font-medium leading-6 text-gray-900">
               Case Type *
@@ -698,73 +717,79 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
               </p>
             )}
           </div>
-          <div className="sm:col-span-3 lg:col-span-2">
-            <label className="block text-sm font-medium leading-6 text-gray-900">
-              Credit Control Area *
-            </label>
-            <select
-              value={creditControlArea}
-              onChange={(e) => {
-                setCreditControlArea(e.target.value);
-                if (fieldErrors["creditControlArea"]) {
-                  const newErrors = { ...fieldErrors };
-                  delete newErrors["creditControlArea"];
-                  setFieldErrors(newErrors);
-                }
-              }}
-              disabled={
-                !divisionCode || filteredCreditControlAreas.length === 0
-              }
-              className={getInputClass("creditControlArea")}
-            >
-              <option value="">Select Area</option>
-              {filteredCreditControlAreas.map((a) => (
-                <option key={a.code} value={a.code}>
-                  {a.code} - {a.description}
-                </option>
-              ))}
-            </select>
-            {fieldErrors["creditControlArea"] && (
-              <p className="mt-1 text-xs text-red-600">
-                {fieldErrors["creditControlArea"]}
-              </p>
-            )}
-            {divisionCode && filteredCreditControlAreas.length === 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                No matching area found for this division
-              </p>
-            )}
-          </div>
-          <div className="sm:col-span-3 lg:col-span-2">
-            <label className="block text-sm font-medium leading-6 text-gray-900">
-              Profit Center *
-            </label>
-            <select
-              value={profitCenter}
-              onChange={(e) => {
-                setProfitCenter(e.target.value);
-                if (fieldErrors["profitCenter"]) {
-                  const newErrors = { ...fieldErrors };
-                  delete newErrors["profitCenter"];
-                  setFieldErrors(newErrors);
-                }
-              }}
-              disabled={!entityCode}
-              className={getInputClass("profitCenter")}
-            >
-              <option value="">Select Center</option>
-              {filteredProfitCenters.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.code} - {p.name}
-                </option>
-              ))}
-            </select>
-            {fieldErrors["profitCenter"] && (
-              <p className="mt-1 text-xs text-red-600">
-                {fieldErrors["profitCenter"]}
-              </p>
-            )}
-          </div>
+
+          {isGeneralDetailsRequired && (
+            <>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <label className="block text-sm font-medium leading-6 text-gray-900">
+                  Credit Control Area *
+                </label>
+                <select
+                  value={creditControlArea}
+                  onChange={(e) => {
+                    setCreditControlArea(e.target.value);
+                    if (fieldErrors["creditControlArea"]) {
+                      const newErrors = { ...fieldErrors };
+                      delete newErrors["creditControlArea"];
+                      setFieldErrors(newErrors);
+                    }
+                  }}
+                  disabled={
+                    !divisionCode || filteredCreditControlAreas.length === 0
+                  }
+                  className={getInputClass("creditControlArea")}
+                >
+                  <option value="">Select Area</option>
+                  {filteredCreditControlAreas.map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.code} - {a.description}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors["creditControlArea"] && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldErrors["creditControlArea"]}
+                  </p>
+                )}
+                {divisionCode && filteredCreditControlAreas.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    No matching area found for this division
+                  </p>
+                )}
+              </div>
+              <div className="sm:col-span-3 lg:col-span-2">
+                <label className="block text-sm font-medium leading-6 text-gray-900">
+                  Profit Center *
+                </label>
+                <select
+                  value={profitCenter}
+                  onChange={(e) => {
+                    setProfitCenter(e.target.value);
+                    if (fieldErrors["profitCenter"]) {
+                      const newErrors = { ...fieldErrors };
+                      delete newErrors["profitCenter"];
+                      setFieldErrors(newErrors);
+                    }
+                  }}
+                  disabled={!entityCode}
+                  className={getInputClass("profitCenter")}
+                >
+                  <option value="">Select Center</option>
+                  {filteredProfitCenters.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.code} - {p.name}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors["profitCenter"] && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {fieldErrors["profitCenter"]}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="sm:col-span-full">
             <label className="block text-sm font-medium leading-6 text-gray-900">
               Remark
@@ -971,7 +996,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Invoice Amount *
+                    Invoice Amount
                   </label>
                   <input
                     type="number"
@@ -995,7 +1020,7 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Invoice Amount Paid
+                    Invoice Amount Paid *
                   </label>
                   <input
                     type="number"
@@ -1009,8 +1034,13 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
                         setInvoiceDetails
                       )
                     }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"
+                    className={getInputClass(`${detail.id}-invoiceAmountPaid`)}
                   />
+                  {fieldErrors[`${detail.id}-invoiceAmountPaid`] && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {fieldErrors[`${detail.id}-invoiceAmountPaid`]}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-12 sm:col-span-6 lg:col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">

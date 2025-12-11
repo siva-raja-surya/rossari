@@ -215,6 +215,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
   const [selectedSubmission, setSelectedSubmission] =
     useState<FormSubmission | null>(null);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -244,6 +245,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
 
     fetchSubmissions();
   }, [onLogout]);
+
+  const filteredSubmissions = submissions.filter((sub) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      sub.id.toLowerCase().includes(query) ||
+      (sub.entityCode || "").toLowerCase().includes(query) ||
+      (sub.invoiceType || "").toLowerCase().includes(query) ||
+      (sub.customerName || "").toLowerCase().includes(query) ||
+      (sub.customerCode || "").toLowerCase().includes(query)
+    );
+  });
 
   return (
     <>
@@ -328,7 +340,37 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
         </div>
 
         <div className="p-8 bg-white rounded-xl shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900">Your Submissions</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Your Submissions
+            </h2>
+            <div className="mt-4 sm:mt-0 relative w-full sm:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search submissions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+
           <div className="mt-4 flow-root">
             <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -336,7 +378,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
                   <div className="text-center py-10 text-gray-500">
                     Loading submissions...
                   </div>
-                ) : submissions.length > 0 ? (
+                ) : filteredSubmissions.length > 0 ? (
                   <table className="min-w-full divide-y divide-gray-300">
                     <thead>
                       <tr>
@@ -345,6 +387,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
                           className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0"
                         >
                           Reference ID
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          Entity
                         </th>
                         <th
                           scope="col"
@@ -373,10 +421,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {submissions.map((sub) => (
+                      {filteredSubmissions.map((sub) => (
                         <tr key={sub.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
                             {sub.id}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {sub.entityCode}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                             {sub.invoiceType}
@@ -416,10 +467,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ user, onLogout }) => {
                       />
                     </svg>
                     <h3 className="mt-2 text-sm font-medium text-gray-900">
-                      No submissions yet
+                      No submissions found
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      Get started by filling a form or uploading a document.
+                      {submissions.length === 0
+                        ? "Get started by filling a form or uploading a document."
+                        : "Try adjusting your search terms."}
                     </p>
                   </div>
                 )}

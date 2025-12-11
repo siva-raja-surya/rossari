@@ -2,13 +2,13 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 const pool = new Pool({
-  user: "postgres",
-  host: "marriott-development.cekj05b8wvmk.ap-south-1.rds.amazonaws.com",
-  database: "postgres",
-  password: "postgres2025",
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASS,
+  port: process.env.DB_PORT || 5432,
   ssl: { rejectUnauthorized: false },
-  options: "-c search_path=rossari",
+  options: "-c search_path=rossari"
 });
 
 module.exports = {
