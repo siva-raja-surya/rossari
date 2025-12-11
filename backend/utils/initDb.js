@@ -114,47 +114,108 @@ const initDb = async () => {
 
       // Divisions
       await db.query(`
-        INSERT INTO master_divisions (code, name, entity_code) VALUES 
-        ('16', 'Institutional Non-Ch', '1000'),
-        ('17', 'Phenoxy Series', '1000'),
-        ('11', 'Silicones', '2000'),
-        ('20', 'Textile Commodity', '2000'),
-        ('16', 'Phenoxy Series', '2000')
-      `);
+    INSERT INTO master_divisions (code, name, entity_code) VALUES
+    ('18', 'Surfactants Agro', '1000'),
+    ('00', 'Common Division', '1000'),
+    ('13', 'HPPC', '1000'),
+    ('22', 'Animal Health & Nutrition', '1000'),
+    ('15', 'Institutional Chemicals', '2000'),
+    ('15', 'Institutional Chemicals', '1000'),
+    ('20', 'Phenoxy Series', '1000'),
+    ('19', 'Surfactants Non-Agro', '1000'),
+    ('10', 'Textile Speciality', '1000'),
+    ('23', 'Pet Care', '1000'),
+    ('16', 'Institutional Non-Chemicals', '1000'),
+    ('17', 'Silicones', '1000'),
+    ('11', 'Textile Commodity', '1000'),
+    ('16', 'Institutional Non-Chemicals', '2000'),
+    ('12', 'Private Label', '1000'),
+    ('14', 'Performance Additives', '1000'),
+    ('21', 'Perfumeries & Dyes', '1000')
+`);
 
       // Bank Accounts
       await db.query(`
         INSERT INTO master_bank_accounts (gl_code, bank_name, entity_code) VALUES 
         ('21001101', 'HDFC', '1000'),
-        ('21002021', 'HDFC CC R', '2000'),
+        ('21002021', 'HDFC', '2000'),
         ('21002030', 'HSBC', '2000'),
         ('21002080', 'AXIS', '2000')
       `);
 
       // Credit Control Areas
       await db.query(`
-        INSERT INTO master_credit_control_areas (code, description) VALUES 
-        ('1010', 'Textile Chemical CCA'),
-        ('1011', 'Textile Non-Chemicals CCA'),
-        ('1012', 'Private Label CCA'),
-        ('1013', 'HPPC CCA'),
-        ('1014', 'Performance Additives CCA'),
-        ('1016', 'Institutional CCA'),
-        ('1017', 'Phenoxy CCA'),
-        ('1020', 'Commodity CCA')
-      `);
+    INSERT INTO master_credit_control_areas (code, description) VALUES
+    ('1010', 'Textile Chemical CCA'),
+    ('1011', 'Textile Non-Chemicals CCA'),
+    ('1012', 'Private Label CCA'),
+    ('1013', 'HPPC CCA'),
+    ('1014', 'Performance Additives CCA'),
+    ('1015', 'Institutional Chemicals CCA'),
+    ('1016', 'Institutional Non-Chemicals CCA'),
+    ('1017', 'Silicones CCA'),
+    ('1018', 'Surfactants Agro CCA'),
+    ('1019', 'Surfactants Non-Agro CCA'),
+    ('1020', 'Textile Non-Chemicals CCA'),
+    ('1021', 'Perfumeries & Dyes CCA'),
+    ('1022', 'Animal Health & Nutrition CCA'),
+    ('1023', 'Pet Care CCA'),
+    ('1024', 'Pharma CCA');
+`);
 
       // Profit Centers
       await db.query(`
-        INSERT INTO master_profit_centers (code, name, entity_code) VALUES 
-        ('127000', 'Amazon Bhiwandi WH 2', '1000'),
-        ('128000', 'Amazon Pune WH', '1000'),
-        ('190000', 'RBL R&D powai', '1000'),
-        ('191000', 'RBL R&D Dahej', '1000'),
-        ('192000', 'RBL R&D Silvas', '1000'),
-        ('200000', 'BRPL Head Office Mumbai', '2000'),
-        ('210000', 'BRPL Bhiwandi MFG', '2000')
-      `);
+    INSERT INTO master_profit_centers (code, name, entity_code) VALUES
+    ('100000', 'RBL Head Office Mumbai', '1000'),
+    ('110000', 'RBL Silvassa- MFG', '1000'),
+    ('111000', 'RBL Dahej - MFG', '1000'),
+    ('112000', 'RBL Kakinada WH', '1000'),
+    ('113000', 'RBL Dahej WH', '1000'),
+    ('120000', 'RBL Kanadi', '1000'),
+    ('121000', 'RBL Bhiwandi WH 1', '1000'),
+    ('122000', 'RBL Bhiwandi WH 2', '1000'),
+    ('123000', 'RBL Bhiwandi WH 3', '1000'),
+    ('124000', 'RBL Nashik WH', '1000'),
+    ('125000', 'RBL Ville Parle WH', '1000'),
+    ('126000', 'Amazon Bhiwandi WH 1', '1000'),
+    ('127000', 'Amazon Bhiwandi WH 2', '1000'),
+    ('128000', 'Amazon Pune WH', '1000'),
+    ('190000', 'RBL R&D powai', '1000'),
+    ('191000', 'RBL R&D Dahej', '1000'),
+    ('192000', 'RBL R&D Silvas', '1000'),
+
+    ('200000', 'BRPL Head Office Mumbai', '2000'),
+    ('210000', 'BRPL Bhiwandi MFG', '2000'),
+    ('211000', 'BRPL Delhi MFG', '2000'),
+    ('212000', 'BRPL Clinical & Healthcare', '2000'),
+    ('213000', 'BRPL Wada Mfg', '2000'),
+    ('220000', 'BRPL Kanadi', '2000'),
+    ('223000', 'BRPL Mumbai WH', '2000'),
+    ('224000', 'BRPL 3PL Warehouse', '2000'),
+
+    ('300000', 'Unitop Head Office Mumbai', '3000'),
+    ('310000', 'Unitop Dahej MFG', '3000'),
+    ('311000', 'Unitop Udhampur MFG', '3000'),
+    ('312000', 'Unitop Patalganga MFG', '3000'),
+    ('313000', 'UNITOP DAHEJ WAREHOUSE', '3000'),
+    ('390000', 'Unitop R&D', '3000'),
+
+    ('400000', 'Tristar Thane Office', '4000'),
+    ('410000', 'Tristar Sarigam Unit 1 MFG', '4000'),
+    ('411000', 'Tristar Sarigam Unit 2 MFG', '4000'),
+    ('412000', 'Tristar Sarigam Unit 3 MFG', '4000'),
+
+    ('510000', 'Romakk Vasai-MFG', '5000'),
+    ('590000', 'Romakk R&D', '5000'),
+
+    ('600000', 'RPCPL Head Office Mumbai', '6000'),
+    ('610000', 'RCPPL Silvassa - WH', '6000'),
+    ('611000', 'RCPPL_BHIWANDI', '6000'),
+    ('612000', 'Amazon Bhiwandi Vashere', '6000'),
+    ('613000', 'Amazon Bhiwandi Vahuli', '6000'),
+    ('614000', 'Amazon Pune', '6000');
+`);
+
       console.log("Master data seeded.");
     }
 

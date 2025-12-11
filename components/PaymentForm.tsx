@@ -297,22 +297,27 @@ const PaymentForm: React.FC<PaymentFormProps> = () => {
     }
 
     // 2. Payment Details Validation
-    const bankRef6DigitRegex = /^\d{6}$/;
-    const bankRefAlphaRegex = /^[a-zA-Z0-9]{10,22}$/;
-
     paymentDetails.forEach((p) => {
       const ref = p.bankReferenceNumber?.trim() || "";
       if (!ref) {
         newFieldErrors[`${p.id}-bankReferenceNumber`] = "Required";
         hasError = true;
       } else {
-        const is6Digit = bankRef6DigitRegex.test(ref);
-        const isAlpha = bankRefAlphaRegex.test(ref);
-
-        if (!is6Digit && !isAlpha) {
-          newFieldErrors[`${p.id}-bankReferenceNumber`] =
-            "Must be 6 digits OR 10-22 alphanumeric.";
-          hasError = true;
+        const isNumeric = /^\d+$/.test(ref);
+        if (isNumeric) {
+          // If purely numeric, must be exactly 6 digits
+          if (!/^\d{6}$/.test(ref)) {
+            newFieldErrors[`${p.id}-bankReferenceNumber`] =
+              "Numeric Ref must be exactly 6 digits.";
+            hasError = true;
+          }
+        } else {
+          // If not purely numeric (contains letters), must be 10-22 alphanumeric
+          if (!/^[a-zA-Z0-9]{10,22}$/.test(ref)) {
+            newFieldErrors[`${p.id}-bankReferenceNumber`] =
+              "Must be 10-22 alphanumeric chars.";
+            hasError = true;
+          }
         }
       }
 
